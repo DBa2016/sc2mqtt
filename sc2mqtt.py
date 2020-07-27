@@ -2,14 +2,11 @@
 import time
 import hashlib
 from base64 import b64decode, b64encode
-from pprint import pprint
 import requests
 from requests.exceptions import InvalidSchema
 from pyquery import PyQuery as pyq
-from uuid import uuid4
 import re
 import json
-from threading import Thread
 import logging
 import asyncio
 from functools import partial
@@ -442,10 +439,8 @@ class SkodaAdapter:
             })
         except HTTPCodeException as e:
             if e.code == 403:
-                #pprint("%s not authorized..." %path)
                 return
             else:
-                #pprint("%s impossible: %s-%s-%s-%s-%s" %(path, url, element, element2, element3, element4))
                 return
         if vin not in self.vehicleStates:
             self.vehicleStates[vin] = {}
@@ -722,7 +717,6 @@ class SkodaAdapter:
         else:
             _LOGGER.info("Tokens wrong...")
             pass
-            #pprint(r1.text)
 
 
 
@@ -874,7 +868,6 @@ class SkodaAdapter:
         
 
         if not excepted:
-            pprint(postpw)
             raise Exception("We should have received an exception by now, so wtf?")
             #if postpw.status_code >= 400:
             #    raise
@@ -925,7 +918,6 @@ class SkodaAdapter:
                 s = await self.getVehicleData(car)
                 t = await self.getVehicleRights(car)
                 hr = await self.getHomeRegion(car)
-                #pprint(hr.json())
                 rq = await self.getVehicleStatus(car)
 
 

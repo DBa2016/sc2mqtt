@@ -29,6 +29,7 @@ Call the sc2mqtt.py file directly. It will search for `config.json` in the curre
 Upon successful start, it will poll Skoda Connect every 60 seconds for a status update on every vehicle detected for the account and post the sensor values over MQTT.
 
 ## TODO
+- add more queryable content (trip data, heater, etc.)
 - add MQTT authentication
 - add SSL for MQTT
 - make more stuff configurable
@@ -40,4 +41,4 @@ Upon successful start, it will poll Skoda Connect every 60 seconds for a status 
 Current modus operandi: if you want to contribute, please fork the repo and create a PR - I will review and eventually merge. Creating readable code makes reviews easier and therefore faster :)
 
 ## Thanks
-- original idea by https://github.com/TA2k
+- original idea by https://github.com/TA2k/ioBroker.vw-connect ; some information (URLs etc.) borrowed from there, too

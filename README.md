@@ -1,3 +1,5 @@
+<a href="https://www.buymeacoffee.com/Jorx" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/lato-yellow.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+
 # sc2mqtt
 Skoda Connect 2 MQTT 
 
@@ -39,6 +41,7 @@ Upon successful start, it will poll Skoda Connect every 60 seconds for a status 
 
 ## Contributions
 Current modus operandi: if you want to contribute, please fork the repo and create a PR - I will review and eventually merge. Creating readable code makes reviews easier and therefore faster :)
+Or you can buy me a coffee (click on the logo at the beginning of the page).
 
 ## Thanks
 - original idea by https://github.com/TA2k/ioBroker.vw-connect ; some information (URLs etc.) borrowed from there, too

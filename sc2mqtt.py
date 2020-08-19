@@ -187,13 +187,13 @@ class SkodaAdapter:
         "0x0301050011":{"statusName": "STATE_SPOILER", "unit_of_measurement": ""},
         "0x0301050012":{"statusName": "POSITION_SPOILER", "unit_of_measurement": ""},
         "0x0101010001":{"statusName": "UTC_TIME_STATUS", "unit_of_measurement": ""},
-        "0x0101010002":{"statusName": "KILOMETER_STATUS", "unit_of_measurement": ""},
+        "0x0101010002":{"statusName": "KILOMETER_STATUS", "unit_of_measurement": "km"},
         "0x0301030006":{"statusName": "PRIMARY_RANGE", "unit_of_measurement": "km"},
         "0x0301030007":{"statusName": "PRIMARY_DRIVE", "unit_of_measurement": ""},
         "0x0301030008":{"statusName": "SECONDARY_RANGE", "unit_of_measurement": "km"},
         "0x0301030009":{"statusName": "SECONDARY_DRIVE", "unit_of_measurement": ""},
-        "0x0301030002":{"statusName": "STATE_OF_CHARGE", "unit_of_measurement": ""},
-        "0x0301020001":{"statusName": "TEMPERATURE_OUTSIDE", "unit_of_measurement": "", "calc": lambda t: (int(t)-2732)/10},
+        "0x0301030002":{"statusName": "STATE_OF_CHARGE", "unit_of_measurement": "%"},
+        "0x0301020001":{"statusName": "TEMPERATURE_OUTSIDE", "unit_of_measurement": "C", "calc": lambda t: (int(t)-2732)/10},
         "0x0301030001":{"statusName": "PARKING_BRAKE", "unit_of_measurement": ""},
         "0x0301060001":{"statusName": "TYRE_PRESSURE_LEFT_FRONT_CURRENT_VALUE", "unit_of_measurement": ""},
         "0x0301060002":{"statusName": "TYRE_PRESSURE_LEFT_FRONT_DESIRED_VALUE", "unit_of_measurement": ""},
@@ -277,6 +277,7 @@ class SkodaAdapter:
     ]
 
     configured = []
+    setupCars = []
     
     HEADERS = lambda self,x: {
                     "User-Agent": "okhttp/3.7.0",
@@ -340,6 +341,11 @@ class SkodaAdapter:
     async def updateValues(self, mqttc):
         while True:
             for vin in self.vehicleStates.keys():
+                if vin not in self.setupCars:
+                    d = (await self.getVehicleData(vin)).json()
+                    car = d["carportData"]
+                    self.setupCars.append(vin)
+                    _LOGGER.debug(car)
                 try:
                     await self.getVehicleStatus(vin)
                 except HTTPCodeException as e:
@@ -371,7 +377,7 @@ class SkodaAdapter:
                         if "calc" in self.statusValues[stateId]:
                             state["value"] = self.statusValues[stateId]["calc"](state["value"])
                         _LOGGER.info("%s -> %s(%s)" %(self.statusValues[stateId]["statusName"], state["textId"], state["value"]))
-                        stopic = "skoda2mqtt/%s_%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
+                        stopic = "skoda2mqtt/%s/%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
                         spayload = "%s(%s)" %(state["textId"], state["value"]) if state["textId"] != state["value"] else state["value"]
                         if stateId not in self.configured:
                             self.configured.append(stateId)
@@ -379,19 +385,36 @@ class SkodaAdapter:
                             cpayload = {
                                 "state_topic": stopic,
                                 "unique_id": "s2m_%s_%s" %(vin, self.statusValues[stateId]["statusName"]),
-                                "name": "s2m_%s_%s" % (vin, self.statusValues[stateId]["statusName"])
+                                "name": "s2m_%s_%s" %(vin, self.statusValues[stateId]["statusName"]),
+                                "device": {
+                                    "identifiers":[
+                                        "s2m_%s_%s" % (vin, car["modelCode"])
+                                    ],
+                                    "manufacturer": car["brand"],
+                                    "model": "%s (%s)" % (car["modelCode"],car["modelYear"]),
+                                    "name": car["modelName"],
+                                    "sw_version": "Unknown"
+                                }
                             }
 
                             if "unit_of_measurement" in self.statusValues[stateId] and self.statusValues[stateId]["unit_of_measurement"] != "":
                                 cpayload["unit_of_measurement"] = self.statusValues[stateId]["unit_of_measurement"]
+                                cpayload["value_template"] = "{{ value_json.value }}"
 
                             mqttc.publish(ctopic, json.dumps(cpayload))
+                        if "unit_of_measurement" in self.statusValues[stateId] and self.statusValues[stateId]["unit_of_measurement"] != "":
+                            spayload = json.dumps({
+                                "value": state["value"],
+                                "text_state": state["textId"]
+                            })
                         mqttc.publish(stopic, spayload)
 
                         publishdict[self.statusValues[stateId]["statusName"]] = {"value": state["value"], "textId": state["textId"]};
                         for sl in STATLIMITS:
                             if(re.match(sl["mask"], self.statusValues[stateId]["statusName"]) and sl["check"] != state["textId"]):
                                 status = sl["fail"] if status > sl["fail"] else status
+                    # else:
+                    #    _LOGGER.debug("%s - %s" % (stateId, state["textId"]))
                 publishdict["GENERAL_STATUS"] = ["open", "closed", "locked"][status]
 
                 #mqttc.publish(
@@ -567,7 +590,7 @@ class SkodaAdapter:
                 "method": "POST"
             })
             self.throttle_wait = int(time.time()) + 30*60
-            return r;
+            return r
         except VWThrottledException:
             self.throttle_wait = int(time.time()) + 30*60
             pass

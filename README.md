@@ -30,6 +30,11 @@ Call the sc2mqtt.py file directly. It will search for `config.json` in the curre
 
 Upon successful start, it will poll Skoda Connect every 60 seconds for a status update on every vehicle detected for the account and post the sensor values over MQTT.
 
+## JSON Example
+```
+{"user": "test@example.com", "password": "my_very_speciaL_passw0rd", "broker": "mqtt.local"}
+```
+
 ## TODO
 - add more queryable content (trip data, heater, etc.)
 - add MQTT authentication

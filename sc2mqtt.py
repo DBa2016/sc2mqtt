@@ -384,7 +384,9 @@ class SkodaAdapter:
                             state["value"] = self.statusValues[stateId]["calc"](state["value"])
                         _LOGGER.info("%s -> %s(%s)" %(self.statusValues[stateId]["statusName"], state["textId"], state["value"]))
                         stopic = "skoda2mqtt/%s_%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
+                        ntopic = "skoda2mqtt/%s_%s/STATENUM"% (vin, self.statusValues[stateId]["statusName"])
                         spayload = "%s(%s)" %(state["textId"], state["value"]) if state["textId"] != state["value"] else state["value"]
+                        npayload = "%s" % state["value"]
                         if stateId not in self.configured:
                             self.configured.append(stateId)
                             ctopic = "homeassistant/sensor/skoda2mqtt/%s_%s/config" % (vin, self.statusValues[stateId]["statusName"])
@@ -399,6 +401,7 @@ class SkodaAdapter:
 
                             mqttc.publish(ctopic, json.dumps(cpayload))
                         mqttc.publish(stopic, spayload)
+                        mqttc.publish(ntopic, npayload)
 
                         publishdict[self.statusValues[stateId]["statusName"]] = {"value": state["value"], "textId": state["textId"]};
                         for sl in STATLIMITS:

@@ -68,6 +68,14 @@ async def main():
         await ad.init()
         mqttc = mqtt.Client()
         mqttc.connect(cfo["broker"])
+        if int(cfo["brokerauth"]) == 1:
+            mqttc.username_pw_set(username=cfo["brokeruser"],password=cfo["brokerpassword"])
+        try:
+            mqttc.connect(cfo["broker"],port=int(cfo["brokerport"]))
+        except:
+            _LOGGER.critical("Connection to broker failed")
+            exit(1)
+
         mqttc.loop_start()
         
         loop = asyncio.get_event_loop()
@@ -98,7 +106,11 @@ async def configSample():
         json.dump({
             "user": "test@example.com",
             "password": "my_very_speciaL_passw0rd",
-            "broker": "mqtt.local"
+            "broker": "mqtt.local",
+            "brokerport": "1883",
+            "brokerauth": "1",
+            "brokeruser": "my_broker_usnerame",
+            "brokerpassword": "my_very_speciaL_bRoker_passw0rd"
         }, cfile)
 
 

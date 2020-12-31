@@ -57,6 +57,7 @@ _LOGGER = setup_logger("s2m")
 
 async def main():
     try:
+        global cfo
         with open("config.json", "r") as cfile:
             cfo = json.load(cfile)
 
@@ -64,6 +65,8 @@ async def main():
             if el not in cfo:
                 _LOGGER.critical("No %s defined in config file" % el)
                 return False
+        if "topic" not in cfo:
+            cfo["topic"] = "skoda2mqtt"
         ad = SkodaAdapter(cfo["user"], cfo["password"])
         await ad.init()
         mqttc = mqtt.Client()
@@ -98,6 +101,7 @@ async def configSample():
         json.dump({
             "user": "test@example.com",
             "password": "my_very_speciaL_passw0rd",
+            "topic": "skoda2mqtt",
             "broker": "mqtt.local"
         }, cfile)
 
@@ -351,9 +355,9 @@ class SkodaAdapter:
 
             for vin,stateDict in self.vehicleStates.items():
                 publishdict = {}
-                mainjtopic = "skoda2mqtt/%s/JSTATE" % vin
-                mainstopic = "skoda2mqtt/%s/JSTATE"% vin
-                mainctopic = "homeassistant/sensor/skoda2mqtt/%s/config" % vin
+                mainjtopic = "%s/%s/JSTATE" % (cfo["topic"], vin)
+                mainstopic = "%s/%s/JSTATE"% (cfo["topic"], vin)
+                mainctopic = "homeassistant/sensor/%s/%s/config" % (cfo["topic"], vin)
                 maincpayload = '{"state_topic": "%s","json_attributes_topic": "%s", "unique_id": "s2m_%s", "name": "S2M_%s", "value_template": "{{ value_json.GENERAL_STATUS }}" }' % (
                     mainstopic, mainjtopic,
                     vin,
@@ -371,11 +375,11 @@ class SkodaAdapter:
                         if "calc" in self.statusValues[stateId]:
                             state["value"] = self.statusValues[stateId]["calc"](state["value"])
                         _LOGGER.info("%s -> %s(%s)" %(self.statusValues[stateId]["statusName"], state["textId"], state["value"]))
-                        stopic = "skoda2mqtt/%s_%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
+                        stopic = "%s/%s_%s/STATE"% (cfo["topic"], vin, self.statusValues[stateId]["statusName"])
                         spayload = "%s(%s)" %(state["textId"], state["value"]) if state["textId"] != state["value"] else state["value"]
                         if stateId not in self.configured:
                             self.configured.append(stateId)
-                            ctopic = "homeassistant/sensor/skoda2mqtt/%s_%s/config" % (vin, self.statusValues[stateId]["statusName"])
+                            ctopic = "homeassistant/sensor/%s/%s_%s/config" % (cfo["topic"], vin, self.statusValues[stateId]["statusName"])
                             cpayload = {
                                 "state_topic": stopic,
                                 "unique_id": "s2m_%s_%s" %(vin, self.statusValues[stateId]["statusName"]),

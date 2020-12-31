@@ -68,16 +68,6 @@ async def main():
         await ad.init()
         mqttc = mqtt.Client()
         mqttc.connect(cfo["broker"])
-        if cfo["brokeruser"] and cfo["brokerpassword"]:
-            mqttc.username_pw_set(username=cfo["brokeruser"],password=cfo["brokerpassword"])
-        if not cfo["brokerport"]:
-            cfo["brokerport"] == 1883
-        try:
-            mqttc.connect(cfo["broker"],port=int(cfo["brokerport"]))
-        except:
-            _LOGGER.critical("Connection to broker failed")
-            exit(1)
-
         mqttc.loop_start()
         
         loop = asyncio.get_event_loop()
@@ -108,10 +98,7 @@ async def configSample():
         json.dump({
             "user": "test@example.com",
             "password": "my_very_speciaL_passw0rd",
-            "broker": "mqtt.local",
-            "brokerport": "1883",
-            "brokeruser": "my_broker_usnerame",
-            "brokerpassword": "my_very_speciaL_bRoker_passw0rd"
+            "broker": "mqtt.local"
         }, cfile)
 
 
@@ -385,9 +372,7 @@ class SkodaAdapter:
                             state["value"] = self.statusValues[stateId]["calc"](state["value"])
                         _LOGGER.info("%s -> %s(%s)" %(self.statusValues[stateId]["statusName"], state["textId"], state["value"]))
                         stopic = "skoda2mqtt/%s_%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
-                        ntopic = "skoda2mqtt/%s_%s/STATENUM"% (vin, self.statusValues[stateId]["statusName"])
                         spayload = "%s(%s)" %(state["textId"], state["value"]) if state["textId"] != state["value"] else state["value"]
-                        npayload = "%s" % state["value"]
                         if stateId not in self.configured:
                             self.configured.append(stateId)
                             ctopic = "homeassistant/sensor/skoda2mqtt/%s_%s/config" % (vin, self.statusValues[stateId]["statusName"])
@@ -402,7 +387,6 @@ class SkodaAdapter:
 
                             mqttc.publish(ctopic, json.dumps(cpayload))
                         mqttc.publish(stopic, spayload)
-                        mqttc.publish(ntopic, npayload)
 
                         publishdict[self.statusValues[stateId]["statusName"]] = {"value": state["value"], "textId": state["textId"]};
                         for sl in STATLIMITS:

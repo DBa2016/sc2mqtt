@@ -68,8 +68,10 @@ async def main():
         await ad.init()
         mqttc = mqtt.Client()
         mqttc.connect(cfo["broker"])
-        if int(cfo["brokerauth"]) == 1:
+        if cfo["brokeruser"] and cfo["brokerpassword"]:
             mqttc.username_pw_set(username=cfo["brokeruser"],password=cfo["brokerpassword"])
+        if not cfo["brokerport"]:
+            cfo["brokerport"] == 1883
         try:
             mqttc.connect(cfo["broker"],port=int(cfo["brokerport"]))
         except:
@@ -108,7 +110,6 @@ async def configSample():
             "password": "my_very_speciaL_passw0rd",
             "broker": "mqtt.local",
             "brokerport": "1883",
-            "brokerauth": "1",
             "brokeruser": "my_broker_usnerame",
             "brokerpassword": "my_very_speciaL_bRoker_passw0rd"
         }, cfile)

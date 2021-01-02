@@ -19,6 +19,8 @@ nest_asyncio.apply()
 
 from colorlog import ColoredFormatter
 
+import getopt
+import sys
 
 def setup_logger(name):
     """Return a logger with a default ColoredFormatter."""
@@ -39,7 +41,21 @@ def setup_logger(name):
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
+
+    if loglevel:
+        logger.setLevel(getattr(logging, loglevel.upper(), None))
+    else:
+        logger.setLevel(logging.DEBUG)
+
+    if logfile:
+        fileformatter = ColoredFormatter(
+            "[%(levelname)-8s]-%(asctime)s %(message)s",
+            datefmt='%Y-%m-%d %H:%M:%S',
+            reset=False
+        )
+        filehandler = logging.FileHandler(logfile)
+        filehandler.setFormatter(fileformatter)
+        logger.addHandler(filehandler)
 
     return logger
 
@@ -52,12 +68,26 @@ STATLIMITS = [
     { "mask": r"STATE.*COVER", "check": "window_closed", "fail": 0 },
 ]
 
+# Defaults and Command line
+logfile=""
+configfile="config.json"
+loglevel="DEBUG"
+opts, args = getopt.getopt(sys.argv[1:], 'f:l:c:', ['logfile=', 'loglevel=', 'configfile='])
+for opt, arg in opts:
+    if opt in ('-f', '--logfile'):
+        logfile=arg
+    elif opt in ('-l', '--loglevel'):
+        loglevel=arg
+    elif opt in ('-c', '--configfile'):
+        configfile=arg
+
 #logging.basicConfig(level=logging.INFO)
 _LOGGER = setup_logger("s2m")
 
 async def main():
+
     try:
-        with open("config.json", "r") as cfile:
+        with open(configfile, "r") as cfile:
             cfo = json.load(cfile)
 
         for el in ["user", "password", "broker"]:
@@ -916,7 +946,7 @@ class SkodaAdapter:
             v = (await self.getVehicles())['userVehicles']['vehicle']
             for car in self.vehicles:
                 s = await self.getVehicleData(car)
-                t = await self.getVehicleRights(car)
+    #            t = await self.getVehicleRights(car)
                 hr = await self.getHomeRegion(car)
                 rq = await self.getVehicleStatus(car)
 

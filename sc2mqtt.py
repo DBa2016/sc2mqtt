@@ -19,6 +19,9 @@ nest_asyncio.apply()
 
 from colorlog import ColoredFormatter
 
+import getopt
+import sys
+
 
 def setup_logger(name):
     """Return a logger with a default ColoredFormatter."""
@@ -39,10 +42,25 @@ def setup_logger(name):
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
+
+    if loglevel:
+        logger.setLevel(getattr(logging, loglevel.upper(), None))
+    else:
+        logger.setLevel(logging.DEBUG)
+
+    if logfile:
+        fileformatter = ColoredFormatter(
+            "[%(levelname)-8s]-%(asctime)s %(message)s",
+            datefmt='%Y-%m-%d %H:%M:%S',
+            reset=False
+        )
+        filehandler = logging.FileHandler(logfile)
+        filehandler.setFormatter(fileformatter)
+        logger.addHandler(filehandler)
 
     return logger
 
+  
 STATLIMITS = [
     { "mask": r"LOCK_STATE.*DOOR", "check": "door_locked", "fail": 1 },
     { "mask": r"OPEN_STATE.*DOOR", "check": "door_closed", "fail": 0 },
@@ -52,12 +70,27 @@ STATLIMITS = [
     { "mask": r"STATE.*COVER", "check": "window_closed", "fail": 0 },
 ]
 
+# Defaults and Command line
+logfile=""
+configfile="config.json"
+loglevel="DEBUG"
+opts, args = getopt.getopt(sys.argv[1:], 'f:l:c:', ['logfile=', 'loglevel=', 'configfile='])
+for opt, arg in opts:
+    if opt in ('-f', '--logfile'):
+        logfile=arg
+    elif opt in ('-l', '--loglevel'):
+        loglevel=arg
+    elif opt in ('-c', '--configfile'):
+        configfile=arg
+
 #logging.basicConfig(level=logging.INFO)
 _LOGGER = setup_logger("s2m")
 
+
 async def main():
+
     try:
-        with open("config.json", "r") as cfile:
+        with open(configfile, "r") as cfile:
             cfo = json.load(cfile)
 
         for el in ["user", "password", "broker"]:
@@ -67,7 +100,6 @@ async def main():
         ad = SkodaAdapter(cfo["user"], cfo["password"])
         await ad.init()
         mqttc = mqtt.Client()
-        mqttc.connect(cfo["broker"])
         if "brokeruser" in cfo and "brokerpassword" in cfo:
             mqttc.username_pw_set(username=cfo["brokeruser"],password=cfo["brokerpassword"])
         if "brokerport" not in cfo:
@@ -108,12 +140,8 @@ async def configSample():
         json.dump({
             "user": "test@example.com",
             "password": "my_very_speciaL_passw0rd",
-            "broker": "mqtt.local",
-            "brokerport": "1883",
-            "brokeruser": "my_broker_usnerame",
-            "brokerpassword": "my_very_speciaL_bRoker_passw0rd"
+            "broker": "mqtt.local"
         }, cfile)
-
 
 
 class VWThrottledException(Exception):
@@ -145,7 +173,6 @@ class SkodaAdapter:
             'access_token': 'jwtaccess_token',
             'id_token': 'jwtid_token'
     }
-
 
     statusValues = {
         "0x0203010001":{"statusName": "MAINTENANCE_INTERVAL_DISTANCE_TO_OIL_CHANGE", "unit_of_measurement": "km"},
@@ -316,8 +343,6 @@ class SkodaAdapter:
 #    extract_csrf = lambda self,req: re.compile('<meta name="_csrf" content="([^"]*)"/>').search(req).group(1)
 
 
-
-
     async def login(self):
         ## Following does not work yet really, needs adjustments for Skoda
         #_LOGGER.info("Getting landing page (%s)" % self.landing_page_url)
@@ -385,9 +410,7 @@ class SkodaAdapter:
                             state["value"] = self.statusValues[stateId]["calc"](state["value"])
                         _LOGGER.info("%s -> %s(%s)" %(self.statusValues[stateId]["statusName"], state["textId"], state["value"]))
                         stopic = "skoda2mqtt/%s_%s/STATE"% (vin, self.statusValues[stateId]["statusName"])
-                        ntopic = "skoda2mqtt/%s_%s/STATENUM"% (vin, self.statusValues[stateId]["statusName"])
                         spayload = "%s(%s)" %(state["textId"], state["value"]) if state["textId"] != state["value"] else state["value"]
-                        npayload = "%s" % state["value"]
                         if stateId not in self.configured:
                             self.configured.append(stateId)
                             ctopic = "homeassistant/sensor/skoda2mqtt/%s_%s/config" % (vin, self.statusValues[stateId]["statusName"])
@@ -402,7 +425,6 @@ class SkodaAdapter:
 
                             mqttc.publish(ctopic, json.dumps(cpayload))
                         mqttc.publish(stopic, spayload)
-                        mqttc.publish(ntopic, npayload)
 
                         publishdict[self.statusValues[stateId]["statusName"]] = {"value": state["value"], "textId": state["textId"]};
                         for sl in STATLIMITS:
@@ -417,6 +439,7 @@ class SkodaAdapter:
 
             await asyncio.sleep(60)
 
+            
     async def getVehicleStatus(self, vin):
         url = await self.replaceVarInUrl("$homeregion/fs-car/bs/vsr/v1/$type/$country/vehicles/$vin/status", vin)
         accept = "application/json"
@@ -434,7 +457,6 @@ class SkodaAdapter:
         if "StoredVehicleDataResponse" not in r or "vehicleData" not in r["StoredVehicleDataResponse"] or "data" not in r["StoredVehicleDataResponse"]["vehicleData"]:
             return False
         self.vehicleStates[vin] = dict([(e["id"],e if "value" in e else "") for f in [s["field"] for s in r["StoredVehicleDataResponse"]["vehicleData"]["data"]] for e in f])
-
 
 
     async def getVehicleStatus_orig(self, vin, url, path, element, element2, element3, element4):
@@ -477,7 +499,6 @@ class SkodaAdapter:
         if element4 and element4 in result:
             result = result[element4]
 
-
         if path == "tripdata":
             if self.config["tripType"] == "none":
                 return
@@ -486,9 +507,6 @@ class SkodaAdapter:
         if result:
             for v in result:
                 pass
-
-
-
 
         return r
 
@@ -500,7 +518,8 @@ class SkodaAdapter:
         if vin != "":
             nurl = re.sub("\$vin", vin, nurl)
         return nurl
-
+  
+  
     async def getVehicleData(self,vin):
         url = await self.replaceVarInUrl("https://msg.volkswagen.de/fs-car/promoter/portfolio/v1/$type/$country/vehicle/$vin/carportdata", vin)
         r = await self.execRequest({
@@ -519,6 +538,7 @@ class SkodaAdapter:
         self.vehicleData[vin] = r.json()
         return r
 
+      
     async def getVehicleRights(self,vin):
         url = "https://mal-1a.prd.ece.vwg-connect.com/api/rolesrights/operationlist/v3/vehicles/" + vin
         r = await self.execRequest({
@@ -536,12 +556,15 @@ class SkodaAdapter:
         self.vehicleRights[vin] = r.json()
         return r
 
+      
     async def saveTokens(self):
         pass # TODO
 
+      
     async def loadTokens(self):
         pass # TODO
 
+      
     async def requestStatusUpdate(self, vin = ""):
         
         key = "skoda2mqtt.requestStatusUpdateTS"
@@ -606,10 +629,7 @@ class SkodaAdapter:
         self.config["homeregion"] = r.json()['homeRegion']['baseUri']['content'].split("/api")[0].replace("mal-", "fal-") if r.json()['homeRegion']['baseUri']['content'] != "https://mal-1a.prd.ece.vwg-connect.com/api" else "https://msg.volkswagen.de"
         return r
 
-
-
-
-
+      
     async def getVehicles(self):
         url = await self.replaceVarInUrl("https://msg.volkswagen.de/fs-car/usermanagement/users/v1/$type/$country/vehicles")
         headers = {
@@ -627,6 +647,7 @@ class SkodaAdapter:
         self.vehicles = r.json()['userVehicles']['vehicle']
         return r.json()
 
+      
     async def getCodeChallenge(self):
         chash = ""
         result = ""
@@ -639,6 +660,7 @@ class SkodaAdapter:
             chash = b64encode(sha256.digest()).decode("utf-8")[:-1]
         return(result, chash)
 
+      
     async def getTokens(self, rurl, code_verifier = ""):
         hashArray = re.split(r'[?#]',rurl)[-1].split('&')
         tokens = {}
@@ -674,12 +696,12 @@ class SkodaAdapter:
         await self.getVWTokens(vwtok, tokens['jwtid_token'])
         return (r.json(), tokens)
 
+      
     async def loopRefreshTokens(self):
         while True:
             #await asyncio.sleep(3600 * 0.9)
             await asyncio.sleep(20)
             #await self.refreshToken()
-
 
 
     async def refreshToken(self):
@@ -698,11 +720,7 @@ class SkodaAdapter:
         if "refresh_token" in rtokens:
             self.vwtokens["rtoken"] = rtokens["refresh_token"]
 
-
-
-
-
-
+            
     async def getVWTokens(self, tokens, jwtid_token):
 
         self.vwtokens["atoken"] = tokens["access_token"]
@@ -733,7 +751,6 @@ class SkodaAdapter:
         else:
             _LOGGER.info("Tokens wrong...")
             pass
-
 
 
     async def getNonce(self):
@@ -792,6 +809,7 @@ class SkodaAdapter:
         #print(r.status_code)
         return r
 
+      
     async def getauth(self,getconfig):
         _LOGGER.info("Getting authorization...")
         getauth = await self.execRequest({ # 
@@ -882,7 +900,6 @@ class SkodaAdapter:
             pass
         _LOGGER.info("Done!")
         
-
         if not excepted:
             raise Exception("We should have received an exception by now, so wtf?")
             #if postpw.status_code >= 400:
@@ -907,11 +924,7 @@ class SkodaAdapter:
 #            userId = (await self.tokenize(postpw.headers["Location"]))["userId"] if "userId" in (await self.tokenize(postpw.headers["Location"])) and userId == "" else userId
         _LOGGER.info("Done!")
         await self.getTokens(skodaURL)
-
-
-        
-        
-        
+    
 
     def __init__(self, email, password):
         self.config = {
@@ -926,18 +939,16 @@ class SkodaAdapter:
         self.config["email"] = email
         self.config["password"] = password
 
+        
     async def init(self):
         if len(self.vehicles) == 0:
             await self.login()
             v = (await self.getVehicles())['userVehicles']['vehicle']
             for car in self.vehicles:
                 s = await self.getVehicleData(car)
-                t = await self.getVehicleRights(car)
+    #            t = await self.getVehicleRights(car)
                 hr = await self.getHomeRegion(car)
                 rq = await self.getVehicleStatus(car)
-
-
-
 
 
 if __name__ == "__main__":
